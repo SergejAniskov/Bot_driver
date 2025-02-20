@@ -204,7 +204,7 @@ async def process_write_mileage(message: Message, state: FSMContext) -> None:
             for i in data:
                 print(i[1])
             await message.reply(
-                f"Найдены :",
+                f"Найдены:",
                 reply_markup=keyboards.keyboard.get_dev_us_sel(data,"senders")
             )
 
