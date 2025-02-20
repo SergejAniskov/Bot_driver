@@ -1,0 +1,132 @@
+Подключение к виртуальной машине
+Для подключения к VPS нужно знать ip (IPv4), логин (обычно «root») и пароль.
+
+С Linux и MacOS можно подключится из терминала. Введите команду, логин и ip сервера.
+
+ssh root@123.123.123.23
+Для windows можно скачать терминал Ubuntu. Если такой вариант не подходит, используйте PuTTY (порт: 22). Вот так выглядит консоль. Для подключения требуется ввести «yes» и пароль.
+
+Футбольный телеграм бот на Python (4/4): Запуск на сервере
+После входа я узнал какая версия python установлена командой python -V. Из коробки стоит 3.6.9, а проект на 3.8.5, нужно обновить.
+
+Подготовка сервера
+Установим необходимую версию python. Внимательно вводите эти команды по очереди, это процесс кастомной установки.
+$ sudo apt update
+$ sudo apt install build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev wget libbz2-dev
+$ wget https://www.python.org/ftp/python/3.8.5/Python-3.8.5.tgz
+$ tar -xf Python-3.8.5.tgz
+$ cd Python-3.8.5
+$ ./configure --enable-optimizations
+$ make  # ~15 минут
+$ sudo make altinstall
+$ cd /home
+Немного деталей. Я скачал архив, распаковал и установил python 3.8.5. Будет готов подождать пока выполнится команды make. Введите python3.8 -V и убедитесь, что можно продолжать:
+
+/home# python3.8 -V
+Python 3.8.5 
+2. Создадим проект. Установим и создадим виртуально окружение. Выполняйте команды по очереди:
+
+$ python3.8 -m pip install --upgrade pip 
+$ pip install virtualenv
+$ mkdir fonlinebot
+$ cd fonlinebot
+$ virtualenv venv
+$ source venv/bin/activate
+$ python -V
+$ deactivate
+Мы установили pip и virtualenv. Затем создали папку «fonlinebot», создали в ней виртуальное окружение и проверили его.
+
+Футбольный телеграм бот на Python (4/4): Запуск на сервере
+3. Установим и запустим Redis-server. Для установки и проверки в Ubuntu введите эти команды:
+
+$ sudo apt install redis-server
+$ redis-cli
+127.0.0.1:6379> ping
+Получите PONG, значит redis запущен. Устанавливать удаленный доступ и пароль в этом руководстве я не буду. Эта служба доступна только конкретной машине, что полностью покрывает задачу.
+
+4. Переменные окружения. Теперь нужно спрятать токен и API-ключ в переменные. Выполните команду nano /etc/environment и вставьте эти строки со своими значениями в кавычках.
+
+fonlinebot_token="замените_на_токен"
+fonlinebot_api_key="замените_на_ключ_апи"
+Затем нажмите CTRL+O -> Enter -> CTRL+X для сохранения. Перезапустите машину: sudo reboot, что бы переменить настройки.
+
+5. Подготовка кода бота. Отредактируйте файл config.py. Раскомментируем настройки логирования и установим переменные окружения.
+
+КОПИРОВАТЬ
+# fonlinebot/config.py
+#...
+import datetime
+import os
+
+
+
+
+TOKEN = os.environ.get("fonlinebot_token")
+#...
+
+   'x-rapidapi-key': os.environ.get("fonlinebot_api_key"),
+#...
+Скрывать секретную информацию (токены, пароли) обязательно. Нельзя выкладывать файлы с паролями на гитхаб, stackoverflow или отправлять сторонним разработчикам.
+
+Половина работы сделана. Теперь нужно загрузить файлы на сервер.
+
+Загрузка файлов на VPS
+Скачайте и установите WinSCP. Это программа для загрузки проекта на VPS. Альтернативный вариант Filezilla. Вариант для повышения скиллов — Git.
+
+Откройте и установите соединение с сервером:
+
+программа для загрузки проекта на сервер
+Далее перенесите файлы проекта (без venv и файлов Pycharm) в папку root/bot/.
+
+файлы проекта (без venv и файлов Pycharm) в папку root/bot/
+Готово? Запустим бота с сервера.
+
+$ cd /root/bot/  # перейдем в папку проекта
+$ source venv/bin/activate  # активируем окружение
+$ pip install -r requirements.txt  # установим зависимости
+$ python main.py  # запустим бота
+Теперь перейдите в Телеграм и протестируйте работу. Отвечает? Хорошо, остановите его (ctrl+c) и деактивируйте виртуальное окружение (deactivate)
+
+Финишная прямая проекта. После закрытия терминала, бот остановится. После перезапуска сервера, он не запустится. Настроем автономную работу.
+
+Беспрерывная работа бота
+Создадим собственную службу для постоянной работы бота и перезапуска в случае падения.
+
+
+nano /lib/systemd/system/bots.service
+С настройками:
+
+[Unit]
+Description=Driver bot
+After=network.target
+
+[Service]
+EnvironmentFile=/etc/environment
+ExecStart=/root/bot/venv/bin/python main.py
+ExecReload=/root/bot/venv/bin/python main.py
+WorkingDirectory=/root/bot/
+KillMode=process
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
+Затем нажмите CTRL+O -> Enter -> CTRL+X для сохранения. Что это за настройки?
+
+Настройки службы, нам важны эти:
+
+Description — описание службы.
+EnvironmentFile — путь к файлу с переменными.
+ExecStart и ExecReload — это команды для запуска и перезапуска бота.
+WorkingDirectory — путь к папке в которой файл запуска main.py.
+Для запуска службы выполните эти 2 команды.
+
+systemctl enable bots
+systemctl start bots
+Теперь вернемся в бот и посмотрим как он отвечает.
+
+Если бот не отвечает, проверьте статус и логи. Здесь сложно предвидеть ошибку:
+
+systemctl status bots  # статус
+journalctl -u  bots.service  # логи
