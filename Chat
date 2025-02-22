@@ -1,0 +1,19 @@
+import subprocess
+from aiogram import types
+
+@form_router.callback_query(keyboards.keyboard.Flight_Callback.filter(F.action == "order_flights_pdf"))
+@form_router.message(Command("pdf"))
+async def handle_command_pdf(callback: types.CallbackQuery):
+    await callback.message.answer("Создаю PDF...")
+
+    excel_file = "/path/to/test.xlsx"  # Укажите путь к вашему файлу
+    pdf_file = "/path/to/test.pdf"
+
+    try:
+        subprocess.run(
+            ["libreoffice", "--headless", "--convert-to", "pdf", excel_file, "--outdir", "/path/to/"],
+            check=True
+        )
+        await callback.message.reply_document(document=types.FSInputFile(pdf_file))
+    except Exception as e:
+        await callback.message.answer(f"Ошибка при создании PDF: {e}")
